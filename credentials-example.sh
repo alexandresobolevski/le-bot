@@ -1,0 +1,5 @@
+export PLOTLY_API_KEY="longSTRING123"
+export PLOTLY_ACCESS_TOKEN="veryLONGstring123456"
+export PLOTLY_USERNAME="johndoe"
+export DNS_DOMAIN="your-domain.com"
+export ZONE_NAME="zone-name"

@@ -1,0 +1,6 @@
+M2Crypto
+flask
+pem
+requests
+six
+subprocess32

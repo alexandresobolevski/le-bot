@@ -1,0 +1,10 @@
+runtime: python
+env: flex
+entrypoint: python le_server.py
+
+runtime_config:
+    python_version: 2
+
+env_variables:
+    DNS_DOMAIN: 'plotly-connector-test.com'
+    ZONE_NAME: 'le-zone-test'
