@@ -10,18 +10,8 @@ Bot that creates/distributes/updates certificates for a supplied subdomain and a
 To be used on a Google Cloud machine and Let's Encrypt's bash client [dehydrated.sh](https://github.com/lukas2511/dehydrated).
 
 # Requirements
-Python 2.7 environment, packages listed in `requirements.txt` file.
+Python 2 environment
 
-# How to use
-
-### Requirements
-
-In a new directory
-```bash
-git clone https://github.com/alexandresobolevski/le-bot.git
-cd le-bot
-pip install -r requirements.txt
-```
 Assuming your domain is `your-domain.com` that is under `your-zone` zone in your Google Cloud DNS records,
 
 - You must be authenticated with `gcloud`, run `gcloud auth login`.
@@ -30,18 +20,31 @@ Assuming your domain is `your-domain.com` that is under `your-zone` zone in your
 
 - Your `gcloud` account must have access to modify DNS entries of the aforementioned Google Cloud zone of that project.
 
+# How to use
+
+### Setup
+
+In a new directory
+```bash
+git clone https://github.com/alexandresobolevski/le-bot.git
+cd le-bot
+pip install -r requirements.txt
+```
+
 - Duplicate the file `credentials-example.sh` as `credentials.sh` and modify the entries  `ZONE_NAME` and `DNS_DOMAIN` to your Google Cloud DNS zone name and domain respectively i.e.
 ```
 ZONE_NAME="your-zone"
 DNS_DOMAIN="your-domain.com"
 ```
 
+### Run
+
 - Start the bot server:
 ```
 python le-server.py 9090
 ```
 
-- Post a request to the server to obtain the certificate,
+- Post a request to the server to obtain the certificate as shown in the screenshot below,
 
 <p align="center">
     <img src="http://i.imgur.com/C65sI6h.png)">
@@ -49,16 +52,10 @@ python le-server.py 9090
 
 - Write the response from the bot (as seen above) to files (`cert.pem` and `key.pem`) and save the received `subdomain`. Your certificates will work for a server hosted on `subdomain.your-domain.com:${port}`. Use created files (cert and key) when starting an HTTPS server.
 
-### Running tests
+### Test
 
-- You must be authenticated with `gcloud`, run `gcloud auth login`.
+- Duplicate (if not yet done) `credentials-example.sh` as `credentials.sh` and modify the entries  `ZONE_NAME` and `DNS_DOMAIN` to your Google Cloud DNS zone name and domain respectively as well as the Plotly credentials (`PLOTLY_API_KEY`, `PLOTLY_USERNAME` and `PLOTLY_ACCESS_KEY`) i.e.
 
-- Duplicate `credentials-example.sh` as `credentials.sh` and modify the entries  `ZONE_NAME` and `DNS_DOMAIN` to your Google Cloud DNS zone name and domain respectively i.e.
-```
-ZONE_NAME="your-zone"
-DNS_DOMAIN="your-domain.com"
-
-```
 - Run the tests.
 ```
 source credentials.sh && python test.py
