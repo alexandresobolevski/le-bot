@@ -57,12 +57,13 @@ fake_access_token = 'f4K3-4CC355-t0k3N'
 mocked_path_to_certs = os.path.join(
     os.getcwd(), os.path.relpath(user_input_path_to_certs) + os.sep)
 mocked_path_to_config = os.path.join(
-    os.getcwd(),os.path.relpath(user_input_path_to_config))
+    os.getcwd(), os.path.relpath(user_input_path_to_config))
 mocked_get_hash = str(uuid.uuid4())[:30]
 mocked_build_subdomain = fake_username[:(32-len(test_domain))] + '-' + mocked_get_hash
 mocked_build_host = mocked_build_subdomain + '.' + test_domain
 mocked_encoded_api_key = base64.b64encode(
     six.b('{0}:{1}'.format(fake_username, fake_api_key))).decode('utf8')
+
 
 def mock_create_certs():
     # Make empty directories for certs
@@ -72,7 +73,7 @@ def mock_create_certs():
     os.mkdir(domain_cert_folder)
 
     # Create fake certs
-    key=RSA.gen_key(2048, 65537)
+    key = RSA.gen_key(2048, 65537)
     test_key = os.path.join(domain_cert_folder, 'privkey.pem')
     test_cert = os.path.join(domain_cert_folder, 'fullchain.pem')
     key.save_pem(test_cert, cipher=None)
@@ -84,12 +85,16 @@ def mock_create_certs():
 #
 CURRENT = '/v2/users/current'
 
-# # #
-# Integration tests that test the full flow when hitting a route.
-#
+
 class TestServerRoutes(unittest.TestCase):
+    """
+    # # #
+    # Integration tests that test the full flow when hitting a route.
+    #
+    """
     def setUp(self):
-        self.server = Server({'port': user_input_port,
+        self.server = Server({
+            'port': user_input_port,
             'path_to_config': user_input_path_to_config,
             'path_to_certs': user_input_path_to_certs,
             'processes': user_input_processes})
@@ -145,8 +150,8 @@ class TestServerRoutes(unittest.TestCase):
     def test_certificate_post_error_no_username(self):
         with self.server.app.test_client() as app_under_test:
             res = app_under_test.post('/certificate', data=json.dumps({
-                'credentials':
-                    {'access_token': correct_access_token,
+                'credentials': {
+                    'access_token': correct_access_token,
                     'plotly_api_domain': test_plotly_api_domain}
             }))
             self.assertTrue('error' in json.loads(res.data))
@@ -171,13 +176,15 @@ class TestServerRoutes(unittest.TestCase):
             pass
 
 
-# # #
-# Functional tests that test specific functions of the server.
-#
 class TestServerFunctions(unittest.TestCase):
-
+    """
+    # # #
+    # Functional tests that test specific functions of the server.
+    #
+    """
     def setUp(self):
-        self.server = Server({'port': user_input_port,
+        self.server = Server({
+            'port': user_input_port,
             'path_to_config': user_input_path_to_config,
             'path_to_certs': user_input_path_to_certs,
             'processes': user_input_processes})
@@ -188,11 +195,11 @@ class TestServerFunctions(unittest.TestCase):
         self.assertEqual(self.server.processes, user_input_processes)
         self.assertEqual(self.server.path_to_certs, mocked_path_to_certs)
         self.assertEqual(
-            self.server.dehydrated_command,
-            [os.getcwd() + '/dehydrated/dehydrated',
-            '-c',
-            '-f',
-            mocked_path_to_config])
+            self.server.dehydrated_command, [
+                os.getcwd() + '/dehydrated/dehydrated',
+                '-c',
+                '-f',
+                mocked_path_to_config])
 
     def test_build_host(self):
         self.assertEqual(
@@ -214,7 +221,7 @@ class TestServerFunctions(unittest.TestCase):
             expected_path)
 
     def test_get_cert_path(self):
-        expected_path =  os.path.join(
+        expected_path = os.path.join(
             mocked_path_to_certs + mocked_build_host + '/fullchain.pem')
 
         self.assertEqual(
@@ -283,7 +290,8 @@ class TestServerFunctions(unittest.TestCase):
             'access_token': fake_access_token}
         headers_under_test = self.server.get_headers(credentials)
         self.assertTrue('authorization' in headers_under_test)
-        self.assertEqual('Bearer ' + fake_access_token,
+        self.assertEqual(
+            'Bearer ' + fake_access_token,
             headers_under_test['authorization'])
 
         # No key or token
@@ -305,7 +313,8 @@ class TestServerFunctions(unittest.TestCase):
         }
         response = self.server.call_plotly_api(CURRENT, credentials)
         content = json.loads(response.content)
-        self.assertFalse(bool(content.get('username')),
+        self.assertFalse(
+            bool(content.get('username')),
             'Expected to fail with fake access token.')
 
         # Failing case: api_key
@@ -316,7 +325,8 @@ class TestServerFunctions(unittest.TestCase):
         }
         response = self.server.call_plotly_api(CURRENT, credentials)
         content = json.loads(response.content)
-        self.assertFalse(bool(content.get('username')),
+        self.assertFalse(
+            bool(content.get('username')),
             'Expected to fail with fake api key.')
 
         # Successful case: access_token
