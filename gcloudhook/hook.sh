@@ -1,16 +1,20 @@
-#!/usr/bin/env bash
+# le_server.py is the high level command that uses dehydrated.sh client in order
+# to validate ownership and control over a given domain name. It is executed
+# with a timeout in case any of these steps hangs.
+# This script is used by dehydrated.sh during dialog with LetsEncrypt servers
+# to execute and validate the required challenge.
 
 if [ "$CIRCLE_CI" == "True" ]
 then
     echo "Domain and Zone should be set by Circle CI: $DNS_DOMAIN and $ZONE_NAME"
-    gcloud_execute="sudo /opt/google-cloud-sdk/bin/gcloud"
+    GCLOUD="sudo /opt/google-cloud-sdk/bin/gcloud"
 elif [ "$PROD" == 'True' ]
 then
     echo "Domain and Zone should be set by Heroku: $DNS_DOMAIN and $ZONE_NAME"
-    gcloud_execute="gcloud"
+    GCLOUD="gcloud"
 else
     source $(dirname $0)/../credentials.sh
-    gcloud_execute="gcloud"
+    GCLOUD="gcloud"
 fi
 
 function deploy_challenge {
@@ -36,27 +40,21 @@ function deploy_challenge {
     echo "Deploying challenge for domain $DOMAIN"
     echo "DNS_DOMAIN: $DNS_DOMAIN on ZONE_NAME: $ZONE_NAME"
 
-    test -f transaction.yaml && rm transaction.yaml
-    $gcloud_execute dns record-sets transaction start --zone $ZONE_NAME
+    rm -f transaction.yaml
+    $GCLOUD dns record-sets transaction start --zone $ZONE_NAME
 
-    $gcloud_execute dns record-sets transaction add --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone $ZONE_NAME
-    $gcloud_execute dns record-sets transaction describe --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction add --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction describe --zone $ZONE_NAME
 
-    changeID=$($gcloud_execute dns record-sets transaction execute --zone $ZONE_NAME  --format='value(id)')
+    changeID=$($GCLOUD dns record-sets transaction execute --zone $ZONE_NAME  --format='value(id)')
 
-    status=$($gcloud_execute dns record-sets changes describe $changeID --zone $ZONE_NAME  --format='value(status)')
+    status=$($GCLOUD dns record-sets changes describe $changeID --zone $ZONE_NAME  --format='value(status)')
     echo -n "Checking execution status of this transaction (can easily take 2-5 minutes): "
     until [[ "$status" = "done" ]]; do
         echo -n "$status"
-        sleep 1
-        echo -n "."
-        sleep 1
-        echo -n "."
-        sleep 1
-        echo -n "."
-        sleep 1
-        echo -n "."
-        status=$($gcloud_execute dns record-sets changes describe $changeID --zone $ZONE_NAME  --format='value(status)')
+        sleep 3
+        echo -n "..."
+        status=$($GCLOUD dns record-sets changes describe $changeID --zone $ZONE_NAME  --format='value(status)')
     done
     echo "done"
 
@@ -69,14 +67,8 @@ function deploy_challenge {
         nsresult=${nsresult//$'"'/''}
         until [[ "$nsresult" = "$TOKEN_VALUE" ]]; do
             echo -n "pending"
-            sleep 1
-            echo -n "."
-            sleep 1
-            echo -n "."
-            sleep 1
-            echo -n "."
-            sleep 1
-            echo -n "."
+            sleep 3
+            echo -n "..."
             nsresult=$(dig _acme-challenge.$DOMAIN TXT @$nameserver +short)
             # nsresult comes with the TXT RR in double quotes - remove those
             # TODO DRY: move to dedicated function
@@ -84,9 +76,6 @@ function deploy_challenge {
         done
         echo "done"
     done
-
-    echo "Sleeping for another 3 seconds to avoid timing conflicts"
-    sleep 3
 
     end=`date +%s`
     runtime=$((end-start))
@@ -105,9 +94,9 @@ function clean_challenge {
     #
     # The parameters are the same as for deploy_challenge.
 
-    test -f transaction.yaml && rm transaction.yaml
-    $gcloud_execute dns record-sets transaction start --zone $ZONE_NAME
-    existingRecord=`$gcloud_execute dns record-sets list --name "_acme-challenge.$DOMAIN." --type TXT --zone $ZONE_NAME  --format='value(name,rrdatas[0],ttl)'`
+    rm -f transaction.yaml
+    $GCLOUD dns record-sets transaction start --zone $ZONE_NAME
+    existingRecord=`$GCLOUD dns record-sets list --name "_acme-challenge.$DOMAIN." --type TXT --zone $ZONE_NAME  --format='value(name,rrdatas[0],ttl)'`
     existingRecord=${existingRecord//$'\t'/,}
     echo "existing record ... ${existingRecord}"
     IFS=',' read -r -a splitRecord <<< "$existingRecord"
@@ -116,8 +105,8 @@ function clean_challenge {
     echo "rrdata ... ${splitRecord[1]}"
     echo "ttl ... ${splitRecord[2]}"
 
-    $gcloud_execute dns record-sets transaction remove "${splitRecord[1]}" --name ${splitRecord[0]} --type TXT --ttl ${splitRecord[2]} --zone $ZONE_NAME
-    $gcloud_execute dns record-sets transaction execute --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction remove "${splitRecord[1]}" --name ${splitRecord[0]} --type TXT --ttl ${splitRecord[2]} --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction execute --zone $ZONE_NAME
 }
 
 

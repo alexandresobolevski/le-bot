@@ -1,5 +1,6 @@
 # Created when running tests
 accounts
+Users
 
 # Credentials for local dev and testing
 credentials.sh
