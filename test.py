@@ -196,7 +196,7 @@ class TestServerFunctions(unittest.TestCase):
         self.assertEqual(self.server.path_to_certs, mocked_path_to_certs)
         self.assertEqual(
             self.server.dehydrated_command, [
-                os.getcwd() + '/dehydrated/dehydrated',
+                os.getcwd() + '/dehydrated-0.3.1/dehydrated',
                 '-c',
                 '-f',
                 mocked_path_to_config])

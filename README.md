@@ -10,7 +10,13 @@ Bot that creates/distributes/updates certificates for a supplied subdomain and a
 To be used on a Google Cloud machine and Let's Encrypt's bash client [dehydrated.sh](https://github.com/lukas2511/dehydrated).
 
 # Requirements
-Python 2 environment
+Python 2.7 environment
+
+Let's Encrypt shell client dehydrated
+
+```bash
+curl -sL https://github.com/lukas2511/dehydrated/archive/v0.3.1.tar.gz | tar xz
+```
 
 Assuming your domain is `your-domain.com` that is under `your-zone` zone in your Google Cloud DNS records,
 

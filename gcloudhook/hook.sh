@@ -1,8 +1,12 @@
 # le_server.py is the high level command that uses dehydrated.sh client in order
 # to validate ownership and control over a given domain name. It is executed
 # with a timeout in case any of these steps hangs.
+
 # This script is used by dehydrated.sh during dialog with LetsEncrypt servers
 # to execute and validate the required challenge.
+
+# This script was modified from the dehydrated hook for google cloud example
+# taken from https://github.com/spfguru/dehydrated4googlecloud.
 
 if [ "$CIRCLE_CI" == "True" ]
 then
@@ -76,7 +80,8 @@ function deploy_challenge {
         done
         echo "done"
     done
-
+    # A small sleep time is required to eliminate intermittent "No TXT records found for DNS challenge" errors
+    sleep 5
     end=`date +%s`
     runtime=$((end-start))
     echo "TIMER: Challenge deployed within $runtime seconds."

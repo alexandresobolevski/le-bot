@@ -1,4 +1,3 @@
-from flask import Flask, send_from_directory, request, jsonify
 import argparse
 import base64
 import json
@@ -12,7 +11,9 @@ import sys
 import time
 import uuid
 
-ERROR_MESSAGE = {
+from flask import Flask, send_from_directory, request, jsonify
+
+ERROR_MESSAGES = {
     'auth': 'A required credential was incorrect or missing. Please provide ' +
             'the correct plotly api domain, username along with an api_key ' +
             'or access_token in the request body. Such as ' +
@@ -91,12 +92,6 @@ class Server():
                     key: "-----BEGIN RSA PRIVATE KEY----- ...",
                     subdomain: "user12-VeRy123LonG456HaSh.yourdomain.com"
                 }
-            PUT /certificate
-                response.data: {
-                    cert: "-----BEGIN CERTIFICATE----- ...",
-                    key: "-----BEGIN RSA PRIVATE KEY----- ...",
-                    subdomain: "user12-VeRy123LonG456HaSh.yourdomain.com"
-                }
 
     """
     def __init__(self, args):
@@ -135,7 +130,7 @@ class Server():
 
         # Setup some other properties for ease of access.
         self.dehydrated_command = [
-            os.getcwd() + '/dehydrated/dehydrated',
+            os.getcwd() + '/dehydrated-0.3.1/dehydrated',
             '-c',
             '-f',
             self.path_to_config]
@@ -152,7 +147,7 @@ class Server():
         def create_cert():
             credentials = json.loads(request.data).get('credentials', {})
             if self.user_is_verified(credentials) is False:
-                return jsonify(error=ERROR_MESSAGE['auth']), 400
+                return jsonify(error=ERROR_MESSAGES['auth']), 400
             # NOTE The above `user_is_verified` check requires a username
             # to be part of credentials, it also checks provided username and
             # token/key against Plotly's database.
@@ -168,9 +163,9 @@ class Server():
                     cert, key, subdomain = self.get_cert_and_key(subdomain)
                     return jsonify(subdomain=subdomain, cert=cert, key=key), 201
                 except ValueError:
-                    return jsonify(error=error), 404
+                    return jsonify(error=error), 500
             else:
-                return jsonify(error=ERROR_MESSAGE['cert']), 500
+                return jsonify(error=ERROR_MESSAGES['cert']), 500
 
     def build_host(self, subdomain):
         return subdomain + '.' + self.domain
@@ -218,11 +213,13 @@ class Server():
         if self.cert_and_key_exist(subdomain):
             cert = str(pem.parse_file(self.get_cert_path(subdomain))[0])
             key = str(pem.parse_file(self.get_key_path(subdomain))[0])
-            # Delete certs to hold no state and reduce risk of a hacker
-            # retrieving someone else's certificate.
-            self.delete_certs_folder_if_exists(subdomain)
         else:
             raise ValueError('Certificates were not found.')
+
+        # Delete certs to hold no state and reduce risk of a hacker
+        # retrieving someone else's certificate.
+        self.delete_certs_folder_if_exists(subdomain)
+
         return cert, key, subdomain
 
     def encode_api_key(self, username, api_key):
@@ -288,16 +285,17 @@ class Server():
     def delete_certs_folder_if_exists(self, subdomain):
         host = self.build_host(subdomain)
         folder_to_delete = self.path_to_certs + host
-        shutil.rmtree(folder_to_delete, ignore_errors=True)
+        if os.path.exists(folder_to_delete):
+            shutil.rmtree(folder_to_delete, ignore_errors=False)
 
-    def execute_letsencrypt_client(self, additionnal_parameters=''):
+    def execute_letsencrypt_client(self, additional_parameters=''):
         # Returns status code of dehydrated.sh client execution.
         # Disable all shell based features with shell=False
         # https://docs.python.org/2/library/subprocess.html#frequently-used-arguments
         start_time = time.time()
         try:
             execution = subprocess32.check_output(
-                self.dehydrated_command + additionnal_parameters,
+                self.dehydrated_command + additional_parameters,
                 timeout=MAX_TIME,
                 shell=False)
         except subprocess32.CalledProcessError as err:

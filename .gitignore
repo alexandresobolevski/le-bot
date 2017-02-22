@@ -1,6 +1,7 @@
 # Created when running tests
 accounts
 Users
+dehydrated-*
 
 # Credentials for local dev and testing
 credentials.sh
