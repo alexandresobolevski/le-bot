@@ -132,6 +132,7 @@ class Server():
         self.dehydrated_command = [
             os.getcwd() + '/dehydrated-0.3.1/dehydrated',
             '-c',
+            '-n',
             '-f',
             self.path_to_config]
 
@@ -161,6 +162,7 @@ class Server():
             if (status == 0):
                 try:
                     cert, key, subdomain = self.get_cert_and_key(subdomain)
+
                     return jsonify(subdomain=subdomain, cert=cert, key=key), 201
                 except ValueError:
                     return jsonify(error=error), 500

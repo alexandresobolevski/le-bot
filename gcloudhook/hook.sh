@@ -39,21 +39,22 @@ function deploy_challenge {
     local DOMAIN="${1}" TOKEN_FILENAME="${2}" TOKEN_VALUE="${3}"
 
     start=`date +%s`
+    transaction_file="--transaction-file=transaction$start.yaml"
 
     echo;
     echo "Deploying challenge for domain $DOMAIN"
     echo "DNS_DOMAIN: $DNS_DOMAIN on ZONE_NAME: $ZONE_NAME"
 
     rm -f transaction.yaml
-    $GCLOUD dns record-sets transaction start --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction start $transaction_file --zone $ZONE_NAME
 
-    $GCLOUD dns record-sets transaction add --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone $ZONE_NAME
-    $GCLOUD dns record-sets transaction describe --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction add $transaction_file --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction describe $transaction_file --zone $ZONE_NAME
 
-    changeID=$($GCLOUD dns record-sets transaction execute --zone $ZONE_NAME  --format='value(id)')
+    changeID=$($GCLOUD dns record-sets transaction execute $transaction_file --zone $ZONE_NAME  --format='value(id)')
 
     status=$($GCLOUD dns record-sets changes describe $changeID --zone $ZONE_NAME  --format='value(status)')
-    echo -n "Checking execution status of this transaction (can easily take 2-5 minutes): "
+    echo -n "Checking execution status of this transaction (can easily take 1 minute): "
     until [[ "$status" = "done" ]]; do
         echo -n "$status"
         sleep 3
@@ -84,6 +85,7 @@ function deploy_challenge {
     sleep 5
     end=`date +%s`
     runtime=$((end-start))
+    rm -rf transaction$start.yaml
     echo "TIMER: Challenge deployed within $runtime seconds."
 }
 
@@ -98,9 +100,10 @@ function clean_challenge {
     # files or DNS records that are no longer needed.
     #
     # The parameters are the same as for deploy_challenge.
+    start=`date +%s`
+    transaction_file="--transaction-file=transaction$start.yaml"
 
-    rm -f transaction.yaml
-    $GCLOUD dns record-sets transaction start --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction start $transaction_file --zone $ZONE_NAME
     existingRecord=`$GCLOUD dns record-sets list --name "_acme-challenge.$DOMAIN." --type TXT --zone $ZONE_NAME  --format='value(name,rrdatas[0],ttl)'`
     existingRecord=${existingRecord//$'\t'/,}
     echo "existing record ... ${existingRecord}"
@@ -110,8 +113,8 @@ function clean_challenge {
     echo "rrdata ... ${splitRecord[1]}"
     echo "ttl ... ${splitRecord[2]}"
 
-    $GCLOUD dns record-sets transaction remove "${splitRecord[1]}" --name ${splitRecord[0]} --type TXT --ttl ${splitRecord[2]} --zone $ZONE_NAME
-    $GCLOUD dns record-sets transaction execute --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction remove $transaction_file "${splitRecord[1]}" --name ${splitRecord[0]} --type TXT --ttl ${splitRecord[2]} --zone $ZONE_NAME
+    $GCLOUD dns record-sets transaction execute $transaction_file --zone $ZONE_NAME
 }
 
 

@@ -198,6 +198,7 @@ class TestServerFunctions(unittest.TestCase):
             self.server.dehydrated_command, [
                 os.getcwd() + '/dehydrated-0.3.1/dehydrated',
                 '-c',
+                '-n',
                 '-f',
                 mocked_path_to_config])
 
