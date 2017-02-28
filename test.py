@@ -3,9 +3,11 @@ import unittest
 from M2Crypto import RSA
 import base64
 import json
+import grequests
 import os
 import shutil
 import six
+import subprocess
 import time
 import uuid
 
@@ -84,6 +86,45 @@ def mock_create_certs():
 # Constants
 #
 CURRENT = '/v2/users/current'
+
+
+class TestServerPerformance(unittest.TestCase):
+
+    def setUp(self):
+        self.server_process = subprocess.Popen(['python', 'le_server.py', '--path_to_config', './config_staging'], stdout=subprocess.PIPE)
+        # Let the server start up.
+        time.sleep(5)
+
+    # @unittest.skip('Skipping concurrent test')
+    def test_concurrent_requests(self):
+        start_time = time.time()
+        # A simple task to do to each response object
+        def verify_response(res):
+            self.assertTrue((time.time() - start_time) < 120)
+            response_object = json.loads(res.content)
+            # Returns the certificate, the key and the subdomain used.
+            self.assertIn('cert', response_object)
+            self.assertIn('key', response_object)
+            self.assertIn('subdomain', response_object)
+            self.assertIsNotNone(response_object.get('cert'))
+            self.assertIsNotNone(response_object.get('key'))
+            self.assertIn(correct_username[:7], response_object.get('subdomain'))
+            print 'All good.'
+
+
+        N = 2
+        async_requests = (grequests.post('http://localhost:8080/certificate', data=json.dumps({
+            'credentials': {
+                'username': correct_username,
+                'api_key': correct_api_key,
+                'plotly_api_domain': test_plotly_api_domain
+            }
+        })) for _ in range(N))
+
+        async_responses = grequests.map(async_requests)
+        print async_responses
+        for res in async_responses:
+            verify_response(res)
 
 
 class TestServerRoutes(unittest.TestCase):

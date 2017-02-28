@@ -162,7 +162,9 @@ class Server():
             if (status == 0):
                 try:
                     cert, key, subdomain = self.get_cert_and_key(subdomain)
-
+                    # Delete certs to hold no state and reduce risk of a hacker
+                    # retrieving someone else's certificate.
+                    self.delete_certs_folder_if_exists(subdomain)
                     return jsonify(subdomain=subdomain, cert=cert, key=key), 201
                 except ValueError:
                     return jsonify(error=error), 500
@@ -217,10 +219,6 @@ class Server():
             key = str(pem.parse_file(self.get_key_path(subdomain))[0])
         else:
             raise ValueError('Certificates were not found.')
-
-        # Delete certs to hold no state and reduce risk of a hacker
-        # retrieving someone else's certificate.
-        self.delete_certs_folder_if_exists(subdomain)
 
         return cert, key, subdomain
 

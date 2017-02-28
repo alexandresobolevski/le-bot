@@ -39,29 +39,38 @@ function deploy_challenge {
     local DOMAIN="${1}" TOKEN_FILENAME="${2}" TOKEN_VALUE="${3}"
 
     start=`date +%s`
-    transaction_file="--transaction-file=transaction$start.yaml"
+    random_number=$(( ( RANDOM % 999999999 )  + 1 ))
+    transaction_file="--transaction-file=transaction$random_number.yaml"
 
     echo;
     echo "Deploying challenge for domain $DOMAIN"
     echo "DNS_DOMAIN: $DNS_DOMAIN on ZONE_NAME: $ZONE_NAME"
 
-    rm -f transaction.yaml
-    $GCLOUD dns record-sets transaction start $transaction_file --zone $ZONE_NAME
+    function transaction_add {
+        $GCLOUD dns record-sets transaction start $transaction_file --zone $ZONE_NAME
+        $GCLOUD dns record-sets transaction add $transaction_file --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone $ZONE_NAME
+        $GCLOUD dns record-sets transaction describe $transaction_file --zone $ZONE_NAME
+    }
 
-    $GCLOUD dns record-sets transaction add $transaction_file --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone $ZONE_NAME
-    $GCLOUD dns record-sets transaction describe $transaction_file --zone $ZONE_NAME
-
+    transaction_add
     changeID=$($GCLOUD dns record-sets transaction execute $transaction_file --zone $ZONE_NAME  --format='value(id)')
 
-    status=$($GCLOUD dns record-sets changes describe $changeID --zone $ZONE_NAME  --format='value(status)')
-    echo -n "Checking execution status of this transaction (can easily take 1 minute): "
+    until [[ ! -z "$changeID" ]]; do
+        $GCLOUD dns record-sets transaction abort $transaction_file --zone $ZONE_NAME
+        transaction_add
+        changeID=$($GCLOUD dns record-sets transaction execute $transaction_file --zone $ZONE_NAME  --format='value(id)')
+        sleep 3
+        echo -n "..."
+    done
+    echo "Got change ID."
+
     until [[ "$status" = "done" ]]; do
         echo -n "$status"
         sleep 3
         echo -n "..."
         status=$($GCLOUD dns record-sets changes describe $changeID --zone $ZONE_NAME  --format='value(status)')
     done
-    echo "done"
+    echo "Change implemented in records."
 
     # Even if the transaction is executed, the results may not be available in the DNS servers yet
     echo "Verifying results on live DNS servers:"
@@ -101,7 +110,8 @@ function clean_challenge {
     #
     # The parameters are the same as for deploy_challenge.
     start=`date +%s`
-    transaction_file="--transaction-file=transaction$start.yaml"
+    random_number=$(( ( RANDOM % 999999999 )  + 1 ))
+    transaction_file="--transaction-file=transaction$random_number.yaml"
 
     $GCLOUD dns record-sets transaction start $transaction_file --zone $ZONE_NAME
     existingRecord=`$GCLOUD dns record-sets list --name "_acme-challenge.$DOMAIN." --type TXT --zone $ZONE_NAME  --format='value(name,rrdatas[0],ttl)'`
@@ -114,7 +124,20 @@ function clean_challenge {
     echo "ttl ... ${splitRecord[2]}"
 
     $GCLOUD dns record-sets transaction remove $transaction_file "${splitRecord[1]}" --name ${splitRecord[0]} --type TXT --ttl ${splitRecord[2]} --zone $ZONE_NAME
-    $GCLOUD dns record-sets transaction execute $transaction_file --zone $ZONE_NAME
+    changeID=$($GCLOUD dns record-sets transaction execute $transaction_file --zone $ZONE_NAME)
+
+    until [[ ! -z "$changeID" ]]; do
+        $GCLOUD dns record-sets transaction abort $transaction_file --zone $ZONE_NAME
+        $GCLOUD dns record-sets transaction start $transaction_file --zone $ZONE_NAME
+        $GCLOUD dns record-sets transaction remove $transaction_file "${splitRecord[1]}" --name ${splitRecord[0]} --type TXT --ttl ${splitRecord[2]} --zone $ZONE_NAME
+        changeID=$($GCLOUD dns record-sets transaction execute $transaction_file --zone $ZONE_NAME)
+        sleep 3
+        echo -n "..."
+    done
+    echo "Got change ID."
+
+    rm -rf transaction$start.yaml
+
 }
 
 
