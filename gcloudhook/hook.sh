@@ -91,7 +91,7 @@ function deploy_challenge {
         echo "done"
     done
     # A small sleep time is required to eliminate intermittent "No TXT records found for DNS challenge" errors
-    sleep 5
+    sleep 15
     end=`date +%s`
     runtime=$((end-start))
     rm -rf transaction$start.yaml
