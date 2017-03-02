@@ -16,12 +16,6 @@ test:
     override:
         - echo $GCLOUD_SERVICE_KEY | base64 --decode > ${HOME}/gcloud-service-key.json
         - sudo /opt/google-cloud-sdk/bin/gcloud --quiet components update
-        - sudo /opt/google-cloud-sdk/bin/gcloud auth activate-service-account le-bot@plotly-connector-tests.iam.gserviceaccount.com --key-file ${HOME}/gcloud-service-key.json
+        - sudo /opt/google-cloud-sdk/bin/gcloud auth activate-service-account le-bot@$GCLOUD_PROJECT.iam.gserviceaccount.com --key-file ${HOME}/gcloud-service-key.json
         - sudo /opt/google-cloud-sdk/bin/gcloud config set project $GCLOUD_PROJECT
         - python test.py
-
-deployment:
-    staging:
-        branch: master
-        heroku:
-            appname: plotly-le-bot
