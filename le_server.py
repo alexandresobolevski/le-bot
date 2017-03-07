@@ -1,6 +1,7 @@
 import argparse
 import base64
 import json
+import logging
 import os
 import pem
 import requests
@@ -333,6 +334,7 @@ class Server():
                 processes=self.processes)
 
 if __name__ == '__main__':
+    logging.basicConfig(filename='lebot.log',level=logging.DEBUG)
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--port',
