@@ -95,7 +95,7 @@ class TestServerPerformance(unittest.TestCase):
         # Let the server start up.
         time.sleep(5)
 
-    # @unittest.skip('Skipping concurrent test')
+    @unittest.skip('This test has too many intermittent failures. Need to improve this.')
     def test_concurrent_requests(self):
         start_time = time.time()
         # A simple task to do to each response object
