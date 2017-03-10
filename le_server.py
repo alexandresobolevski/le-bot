@@ -191,14 +191,13 @@ class Server():
         #   domain = 'plotly-connector-test.com' (25 chars),
         #   usrname_length = 1
         #
-        # Thus, in method get_hash() we truncate the hash to 30 chars to
-        # increase the length of the username.
-        # Thus, calculation becomes 64 - 1 - len(hash) - len(domain) = 7
-        # Let's set minimal username length to 7; which thus sets the max domain
-        # length to 25.
-        # Domain length is limited in the __init__ method.
-        hash_string = self.get_hash()
-        max_usr_len = 64 - 2 - len(hash_string) - len(self.domain)
+        # Thus, we use the following limits
+        max_usr_len = 7
+        max_hash_len = 25
+        # Domain length is checked in the __init__ method
+        max_domain_len = 25
+        # max_domain_len + max_hash_len + max_usr_len + '.' + '.' + '-' 60
+        hash_string = self.get_hash()[:max_hash_len]
         return username.replace('.', '_')[:max_usr_len] + '-' + hash_string
 
     def get_key_path(self, subdomain):
@@ -244,9 +243,9 @@ class Server():
         # -{hash}.plotly-connector-test.com is 63 characters.
         # Which leaves 1 character for username.
         # To include some more of the username (max 30 chars.)
-        # I'm truncating the hash to 30 chars which gives the user min 7 chars.
+        # I'm truncating the hash to 25 chars to give a longer username.
         # See method build_subdomain() for more details.
-        return str(uuid.uuid4())[:30]
+        return str(uuid.uuid4())
 
     def call_plotly_api(self, endpoint, credentials):
         headers = self.get_headers(credentials)

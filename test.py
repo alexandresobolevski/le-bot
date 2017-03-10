@@ -47,7 +47,7 @@ correct_username = os.environ['PLOTLY_USERNAME']
 
 #
 # These are some fake inputs for our tests.
-# Test with max username length (30 chars) to make sure it works.
+# Test with max username length (25 chars) to make sure it works.
 #
 fake_username = 'NananaNananaNananaNananaBatman'
 fake_api_key = 'f4K3-4Pi-k3Y'
@@ -60,8 +60,8 @@ mocked_path_to_certs = os.path.join(
     os.getcwd(), os.path.relpath(user_input_path_to_certs) + os.sep)
 mocked_path_to_config = os.path.join(
     os.getcwd(), os.path.relpath(user_input_path_to_config))
-mocked_get_hash = str(uuid.uuid4())[:30]
-mocked_build_subdomain = fake_username[:(32-len(test_domain))] + '-' + mocked_get_hash
+mocked_get_hash = str(uuid.uuid4())
+mocked_build_subdomain = fake_username[:7] + '-' + mocked_get_hash[:25]
 mocked_build_host = mocked_build_subdomain + '.' + test_domain
 mocked_encoded_api_key = base64.b64encode(
     six.b('{0}:{1}'.format(fake_username, fake_api_key))).decode('utf8')
