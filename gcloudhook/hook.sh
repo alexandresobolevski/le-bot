@@ -94,7 +94,7 @@ function deploy_challenge {
     sleep 15
     end=`date +%s`
     runtime=$((end-start))
-    rm -rf transaction$start.yaml
+    rm -rf transaction$random_number.yaml
     echo "TIMER: Challenge deployed within $runtime seconds."
 }
 
@@ -136,7 +136,7 @@ function clean_challenge {
     done
     echo "Got change ID."
 
-    rm -rf transaction$start.yaml
+    rm -rf transaction$random_number.yaml
 
 }
 

@@ -262,10 +262,12 @@ class Server():
     def user_is_verified(self, credentials):
         if not self.credentials_are_valid(credentials):
             return False
-        # TODO: Decide verification method for on-prem.
+        # TODO: Decide verification method for on-prem if any.
+        # For now, ask on-prem users to use the headless connector with their
+        # Plotly server or get a Pro Cloud account.
         # https://github.com/plotly/le-bot/issues/2
         if credentials.get('plotly_api_domain') != 'https://api.plot.ly':
-            return True
+            return False
         # Continue on knowing there is a username in credentials.
         response = self.call_plotly_api('/v2/users/current', credentials)
         # Requests with either existing or non-existing both return a
