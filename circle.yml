@@ -1,0 +1,21 @@
+machine:
+    python:
+        version: 2.7.12
+
+checkout:
+  post:
+    - git submodule sync
+    - git submodule update --init
+
+dependencies:
+    override:
+        - curl -sL https://github.com/lukas2511/dehydrated/archive/v0.3.1.tar.gz | tar xz
+        - pip install -r requirements.txt
+
+test:
+    override:
+        - echo $GCLOUD_SERVICE_KEY | base64 --decode > ${HOME}/gcloud-service-key.json
+        - sudo /opt/google-cloud-sdk/bin/gcloud --quiet components update
+        - sudo /opt/google-cloud-sdk/bin/gcloud auth activate-service-account le-bot@$GCLOUD_PROJECT.iam.gserviceaccount.com --key-file ${HOME}/gcloud-service-key.json
+        - sudo /opt/google-cloud-sdk/bin/gcloud config set project $GCLOUD_PROJECT
+        - python test.py

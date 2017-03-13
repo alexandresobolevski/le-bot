@@ -1,0 +1,3 @@
+KEYSIZE="2048"
+CHALLENGETYPE="dns-01"
+HOOK="gcloudhook/hook.sh"

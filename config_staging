@@ -1,0 +1,4 @@
+KEYSIZE="2048"
+CHALLENGETYPE="dns-01"
+HOOK="gcloudhook/hook.sh"
+CA="https://acme-staging.api.letsencrypt.org/directory"
