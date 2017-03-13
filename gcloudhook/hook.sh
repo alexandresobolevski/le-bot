@@ -91,10 +91,11 @@ function deploy_challenge {
         echo "done"
     done
     # A small sleep time is required to eliminate intermittent "No TXT records found for DNS challenge" errors
+    # TODO: https://github.com/plotly/le-bot/issues/4
     sleep 15
     end=`date +%s`
     runtime=$((end-start))
-    rm -rf transaction$random_number.yaml
+    rm -f transaction$random_number.yaml
     echo "TIMER: Challenge deployed within $runtime seconds."
 }
 
