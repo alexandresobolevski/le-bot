@@ -5,3 +5,4 @@ requests
 grequests
 six
 subprocess32
+uwsgi
