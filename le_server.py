@@ -195,7 +195,10 @@ class Server():
         max_domain_len = 25
         # max_domain_len + max_hash_len + max_usr_len + '.' + '.' + '-' 60
         hash_string = self.get_hash()[:max_hash_len]
-        return username.replace('.', '_')[:max_usr_len] + '-' + hash_string
+        username = username.replace('.', '-').replace('_', '-').lower()
+        if username[0] == '-':
+            username = 'p' + username[1:]
+        return username[:max_usr_len] + '-' + hash_string
 
     def get_key_path(self, subdomain):
         return self.path_to_certs + self.build_host(subdomain) + '/privkey.pem'
