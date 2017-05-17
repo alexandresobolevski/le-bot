@@ -184,7 +184,7 @@ function clean_challenge() {
         "$GCLOUD" dns record-sets transaction remove "$transaction_file" "${splitRecord[1]}" --name "${splitRecord[0]}" --type TXT --ttl "${splitRecord[2]}" --zone "$ZONE_NAME"
         changeID=$("$GCLOUD" dns record-sets transaction execute "$transaction_file" --zone "$ZONE_NAME")
 
-        if [[ ! -z "$changeID" ]]; then
+        if [[ -z "$changeID" ]]; then
             "$GCLOUD" dns record-sets transaction abort "$transaction_file" --zone "$ZONE_NAME"
             echo -n "..."
             return 1
