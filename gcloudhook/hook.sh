@@ -13,10 +13,10 @@ set -eo pipefail
 # taken from https://github.com/spfguru/dehydrated4googlecloud.
 
 if [[ "$CIRCLE_CI" == "True" ]] ; then
-    echo "Domain and Zone should be set by Circle CI: $DNS_DOMAIN and $ZONE_NAME"
+    echo "Domain and Zone set by Circle CI: $DNS_DOMAIN and $ZONE_NAME"
     GCLOUD="sudo /opt/google-cloud-sdk/bin/gcloud"
 elif [[ "$PROD" == 'True' ]] ; then
-    echo "Domain and Zone should be set by Heroku: $DNS_DOMAIN and $ZONE_NAME"
+    echo "Domain and Zone set by environment: $DNS_DOMAIN and $ZONE_NAME"
     GCLOUD="gcloud"
 else
     source "$(dirname "$0")"/../credentials.sh
