@@ -161,14 +161,11 @@ class Server():
                 ['-d', host] + ['-o', self.path_to_certs])
 
             if (status == 0):
-                try:
-                    cert, key, subdomain = self.get_cert_and_key(subdomain)
-                    # Delete certs to hold no state and reduce risk of a hacker
-                    # retrieving someone else's certificate.
-                    self.delete_certs_folder_if_exists(subdomain)
-                    return jsonify(subdomain=subdomain, cert=cert, key=key), 201
-                except ValueError:
-                    return jsonify(error=error), 500
+                cert, key, subdomain = self.get_cert_and_key(subdomain)
+                # Delete certs to hold no state and reduce risk of a hacker
+                # retrieving someone else's certificate.
+                self.delete_certs_folder_if_exists(subdomain)
+                return jsonify(subdomain=subdomain, cert=cert, key=key), 201
             else:
                 return jsonify(error=ERROR_MESSAGES['cert']), 500
 
@@ -206,19 +203,19 @@ class Server():
     def get_cert_path(self, subdomain):
         return self.path_to_certs + self.build_host(subdomain) + '/fullchain.pem'
 
-    def cert_and_key_exist(self, subdomain):
-        key_exists = os.path.exists(self.get_key_path(subdomain))
-        cert_exists = os.path.exists(self.get_cert_path(subdomain))
-        return key_exists and cert_exists
-
     def get_cert_and_key(self, subdomain):
         cert = ''
         key = ''
-        if self.cert_and_key_exist(subdomain):
-            cert = str(pem.parse_file(self.get_cert_path(subdomain))[0])
-            key = str(pem.parse_file(self.get_key_path(subdomain))[0])
-        else:
-            raise ValueError('Certificates were not found.')
+
+        key_path = self.get_key_path(subdomain)
+        if not os.path.exists(key_path):
+            raise ValueError('key not found: {}'.format(key_path))
+        key = str(pem.parse_file(key_path)[0])
+
+        cert_path = self.get_cert_path(subdomain)
+        if not os.path.exists(cert_path):
+            raise ValueError('cert not found: {}'.format(cert_path))
+        cert = str(pem.parse_file(cert_path)[0])
 
         return cert, key, subdomain
 
