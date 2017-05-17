@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eo pipefail
+exec 2>&1
 
 # le_server.py is the high level command that uses dehydrated.sh client in order
 # to validate ownership and control over a given domain name. It is executed
