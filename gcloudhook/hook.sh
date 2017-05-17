@@ -23,6 +23,30 @@ else
     GCLOUD="gcloud"
 fi
 
+function expbackoff() {
+    # Exponential backoff: retries a command upon failure, scaling up the delay
+    # Example: "expbackoff my_command --with --some --args --maybe"
+    local MAX_RETRIES="${EXPBACKOFF_MAX_RETRIES:-10}" # Max number of retries
+    local BASE="${EXPBACKOFF_BASE:-1}" # Base value for backoff calculation
+    local MAX="${EXPBACKOFF_MAX:-30}" # Max value for backoff calculation
+    local FAILURES=0
+    while ! "$@"; do
+        FAILURES=$(( FAILURES + 1 ))
+        if (( FAILURES > MAX_RETRIES )); then
+            echo "$@" >&2
+            echo " * Failed, max retries exceeded" >&2
+            return 1
+        else
+            local SECONDS=$(( BASE * 2 ** (FAILURES - 1) ))
+            if (( SECONDS > MAX )); then
+                SECONDS="$MAX"
+            fi
+            sleep "$SECONDS"
+            echo
+        fi
+    done
+}
+
 function deploy_challenge() {
     # This hook is called once for every domain that needs to be
     # validated, including any alternative names you may have listed.
@@ -48,50 +72,77 @@ function deploy_challenge() {
     echo "Deploying challenge for domain $DOMAIN"
     echo "DNS_DOMAIN: $DNS_DOMAIN on ZONE_NAME: $ZONE_NAME"
 
-    function transaction_add() {
+    function add_challenge_to_dns() {
+        # Adds the challenge DNS record using gcloud.  Sets $changeID on
+        # success, returns 1 on failure.
+
         "$GCLOUD" dns record-sets transaction start "$transaction_file" --zone "$ZONE_NAME"
         "$GCLOUD" dns record-sets transaction add "$transaction_file" --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone "$ZONE_NAME"
         "$GCLOUD" dns record-sets transaction describe "$transaction_file" --zone "$ZONE_NAME"
+
+        changeID=$("$GCLOUD" dns record-sets transaction execute "$transaction_file" --zone "$ZONE_NAME"  --format='value(id)')
+
+        if [[ -z "$changeID" ]]; then
+             $GCLOUD dns record-sets transaction abort $transaction_file --zone
+             return 1
+        fi
     }
 
-    transaction_add
-    changeID=$("$GCLOUD" dns record-sets transaction execute "$transaction_file" --zone "$ZONE_NAME"  --format='value(id)')
+    if ! expbackoff add_challenge_to_dns ; then
+        echo "Could not add challenge to DNS. Aborting."
+        exit 1
+    fi
 
-    until [[ ! -z "$changeID" ]]; do
-        "$GCLOUD" dns record-sets transaction abort "$transaction_file" --zone "$ZONE_NAME"
-        transaction_add
-        changeID=$("$GCLOUD" dns record-sets transaction execute "$transaction_file" --zone "$ZONE_NAME"  --format='value(id)')
-        sleep 3
-        echo -n "..."
-    done
     echo "Got change ID."
 
-    until [[ "$status" = "done" ]]; do
-        echo -n "$status"
-        sleep 3
-        echo -n "..."
+    function check_challenge_with_gcloud() {
+        # Checks that the challenge has successfully been added using the
+        # "gcloud" command.  Returns 1 on failure.
+
         status=$("$GCLOUD" dns record-sets changes describe "$changeID" --zone "$ZONE_NAME"  --format='value(status)')
-    done
+        echo -n "${status}..."
+
+        if [[ "$status" != "done" ]]; then
+            return 1
+        fi
+    }
+
+    echo "Checking challenge using gcloud: "
+    if ! expbackoff check_challenge_with_gcloud ; then
+        echo "FAILED, aborting."
+        exit 1
+    fi
+
     echo "Change implemented in records."
 
     # Even if the transaction is executed, the results may not be available in the DNS servers yet
-    echo "Verifying results on live DNS servers:"
-    for nameserver in $(dig "$DNS_DOMAIN" NS +short); do
-        echo -n "$nameserver "
+
+    function check_challenge_with_nameserver() {
+        # Checks that the challenge has successfully been added with $nameserver.
+        # Returns 1 on failure.
+
         nsresult=$(dig "_acme-challenge.$DOMAIN" TXT @"$nameserver" +short)
         # nsresult comes with the TXT RR in double quotes - remove those
         nsresult=${nsresult//$'"'/''}
-        until [[ "$nsresult" = "$TOKEN_VALUE" ]]; do
-            echo -n "pending"
-            sleep 3
-            echo -n "..."
-            nsresult=$(dig "_acme-challenge.$DOMAIN" TXT @"$nameserver" +short)
-            # nsresult comes with the TXT RR in double quotes - remove those
-            # TODO DRY: move to dedicated function
-            nsresult=${nsresult//$'"'/''}
-        done
+
+        if [[ "$nsresult" != "$TOKEN_VALUE" ]]; then
+            echo -n "pending..."
+            return 1
+        fi
+    }
+
+    echo "Verifying results on live DNS servers:"
+    for nameserver in $(dig "$DNS_DOMAIN" NS +short); do
+        echo -n "$nameserver "
+
+        if ! expbackoff check_challenge_with_nameserver ; then
+            echo "FAILED, aborting."
+            exit 1
+        fi
+
         echo "done"
     done
+
     # A small sleep time is required to eliminate intermittent "No TXT records found for DNS challenge" errors
     # TODO: https://github.com/plotly/le-bot/issues/4
     sleep 15
@@ -103,20 +154,20 @@ function deploy_challenge() {
 
 
 function clean_challenge() {
-    local DOMAIN="${1}" TOKEN_VALUE="${3}" #TOKEN_FILENAME="${2}"
-
-    echo;
-    echo "Cleaning challenge for domain $DOMAIN"
     # This hook is called after attempting to validate each domain,
     # whether or not validation was successful. Here you can delete
     # files or DNS records that are no longer needed.
     #
     # The parameters are the same as for deploy_challenge.
+
+    local DOMAIN="${1}" TOKEN_VALUE="${3}" #TOKEN_FILENAME="${2}"
+
+    echo;
+    echo "Cleaning challenge for domain $DOMAIN"
     start=$(date +%s)
     random_number=$(( ( RANDOM % 999999999 )  + 1 ))
     transaction_file="--transaction-file=transaction$random_number.yaml"
 
-    "$GCLOUD" dns record-sets transaction start "$transaction_file" --zone "$ZONE_NAME"
     existingRecord=$("$GCLOUD" dns record-sets list --name "_acme-challenge.$DOMAIN." --type TXT --zone "$ZONE_NAME"  --format='value(name,rrdatas[0],ttl)')
     existingRecord=${existingRecord//$'\t'/,}
     echo "existing record ... ${existingRecord}"
@@ -126,17 +177,25 @@ function clean_challenge() {
     echo "rrdata ... ${splitRecord[1]}"
     echo "ttl ... ${splitRecord[2]}"
 
-    "$GCLOUD" dns record-sets transaction remove "$transaction_file" "${splitRecord[1]}" --name "${splitRecord[0]}" --type TXT --ttl "${splitRecord[2]}" --zone "$ZONE_NAME"
-    changeID=$("$GCLOUD" dns record-sets transaction execute "$transaction_file" --zone "$ZONE_NAME")
-
-    until [[ ! -z "$changeID" ]]; do
-        "$GCLOUD" dns record-sets transaction abort "$transaction_file" --zone "$ZONE_NAME"
+    function remove_challenge_from_dns() {
+        # Removes a challenge DNS record using gcloud. Returns 1 on failure.
         "$GCLOUD" dns record-sets transaction start "$transaction_file" --zone "$ZONE_NAME"
         "$GCLOUD" dns record-sets transaction remove "$transaction_file" "${splitRecord[1]}" --name "${splitRecord[0]}" --type TXT --ttl "${splitRecord[2]}" --zone "$ZONE_NAME"
         changeID=$("$GCLOUD" dns record-sets transaction execute "$transaction_file" --zone "$ZONE_NAME")
-        sleep 3
-        echo -n "..."
-    done
+
+        if [[ ! -z "$changeID" ]]; then
+            "$GCLOUD" dns record-sets transaction abort "$transaction_file" --zone "$ZONE_NAME"
+            echo -n "..."
+            return 1
+        fi
+    }
+
+    EXPBACKOFF_MAX_RETRIES=20   # Try harder to cleanup
+    if ! expbackoff remove_challenge_from_dns ; then
+        echo "FAILED, aborting."
+        exit 1
+    fi
+
     echo "Got change ID."
 
     rm -rf "transaction$random_number.yaml"
