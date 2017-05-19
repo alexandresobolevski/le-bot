@@ -26,7 +26,7 @@ ERROR_MESSAGES = {
 DEFAULTS = {
     'port': 8080,
     'path_to_config': './config',
-    'path_to_certs': './certs',  # relative or absolute
+    'path_to_certs': '/var/lib/lebot/certs',  # relative or absolute
     'processes': 5
 }
 
@@ -57,7 +57,7 @@ class Server():
 
             --path_to_certs PATH_TO_CERTS, -s PATH_TO_CERTS
                 Location of temporarily stored certificates. Relative
-                or absolute path. Defaults to certs/
+                or absolute path. Defaults to /var/lib/lebot/certs/
 
             --processes PROCESSES, -n PROCESSES
                 Number of processes for the Flask server. Defaults to 5
