@@ -9,6 +9,7 @@ import six
 import shutil
 import subprocess32
 import sys
+import tempfile
 import time
 import uuid
 
@@ -126,6 +127,10 @@ class Server():
         self.path_to_config = os.path.join(
             os.getcwd(),
             os.path.relpath(args.get('path_to_config')))
+
+        self.path_to_logs = os.path.join(
+            os.getcwd(),
+            os.path.relpath(args.get('path_to_logs')))
 
         self.processes = args.get('processes')
 
@@ -292,26 +297,24 @@ class Server():
 
     def execute_letsencrypt_client(self, additional_parameters=''):
         # Returns status code of dehydrated.sh client execution.
-        # Disable all shell based features with shell=False
-        # https://docs.python.org/2/library/subprocess.html#frequently-used-arguments
+
         start_time = time.time()
+        log = tempfile.NamedTemporaryFile(dir=self.path_to_logs, prefix='',
+                                          suffix='.log', delete=False)
+        cmd = self.dehydrated_command + additional_parameters
+        print 'Running {}, output to: {}'.format(cmd, log.name)
+
         try:
-            execution = subprocess32.check_output(
-                self.dehydrated_command + additional_parameters,
-                timeout=MAX_TIME,
-                shell=False)
+            subprocess32.check_call(cmd, stdout=log, stderr=log, shell=False)
         except subprocess32.CalledProcessError as err:
-            print "Execution error. ", err.returncode, err.output
+            print 'Execution error: {}'.format(err.returncode)
             self.remove_lock_file()
             return 1
-        except subprocess32.TimeoutExpired as err:
-            print "Timeout error. ", err.output, err.stderr
-            self.remove_lock_file()
-            return 124  # Timeout exit code.
-        else:
-            print execution
-            print("--- %s seconds ---" % (time.time() - start_time))
-            return 0
+
+        print("--- %s seconds ---" % (time.time() - start_time))
+        log.close()
+        os.unlink(log.name)
+        return 0
 
     def remove_lock_file(self):
         # Deletes Lockfile if process was interrupted.
