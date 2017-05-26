@@ -6,3 +6,4 @@ grequests
 six
 subprocess32
 uwsgi
+urllib3[secure]
