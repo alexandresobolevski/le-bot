@@ -10,6 +10,7 @@ import os
 import shutil
 import six
 import subprocess
+import tempfile
 import time
 import uuid
 
@@ -136,11 +137,22 @@ class TestServerRoutes(unittest.TestCase):
     #
     """
     def setUp(self):
+        self.path_to_logs = tempfile.mkdtemp()
+
         self.server = Server({
             'port': user_input_port,
             'path_to_config': user_input_path_to_config,
             'path_to_certs': user_input_path_to_certs,
-            'processes': user_input_processes})
+            'processes': user_input_processes,
+            'path_to_logs': self.path_to_logs})
+
+    # Delete certificates folder after each test to start from a clean state.
+    def tearDown(self):
+        try:
+            shutil.rmtree(os.path.join(os.getcwd(), user_input_path_to_certs))
+        except:
+            pass
+        shutil.rmtree(self.path_to_logs)
 
     def test_ping(self):
         with self.server.app.test_client() as app_under_test:
@@ -199,25 +211,6 @@ class TestServerRoutes(unittest.TestCase):
             }))
             self.assertTrue('error' in json.loads(res.data))
 
-    # Failing case: bad authorization
-    def test_certificate_post_error_bad_token(self):
-        with self.server.app.test_client() as app_under_test:
-            res = app_under_test.post('/certificate', data=json.dumps({
-                'credentials': {
-                    'username': correct_username,
-                    'access_token': fake_access_token,
-                    'plotly_api_domain': test_plotly_api_domain
-                }
-            }))
-            self.assertTrue('error' in json.loads(res.data))
-
-    # Delete certificates folder after each test to start from a clean state.
-    def tearDown(self):
-        try:
-            shutil.rmtree(os.path.join(os.getcwd(), user_input_path_to_certs))
-        except:
-            pass
-
 
 class TestServerFunctions(unittest.TestCase):
     """
@@ -226,11 +219,17 @@ class TestServerFunctions(unittest.TestCase):
     #
     """
     def setUp(self):
+        self.path_to_logs = tempfile.mkdtemp()
+
         self.server = Server({
             'port': user_input_port,
             'path_to_config': user_input_path_to_config,
             'path_to_certs': user_input_path_to_certs,
-            'processes': user_input_processes})
+            'processes': user_input_processes,
+            'path_to_logs': self.path_to_logs})
+
+    def tearDown(self):
+        shutil.rmtree(self.path_to_logs)
 
     def test_constructor(self):
         self.assertEqual(self.server.port, user_input_port)
