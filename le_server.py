@@ -155,12 +155,10 @@ class Server():
             credentials = json.loads(request.data).get('credentials', {})
             if self.user_is_verified(credentials) is False:
                 return jsonify(error=ERROR_MESSAGES['auth']), 400
-            # NOTE The above `user_is_verified` check requires a username
-            # to be part of credentials, it also checks provided username and
-            # token/key against Plotly's database.
 
-            # Continue knowing that `username` exists in credentials.
-            subdomain = self.build_subdomain(credentials.get('username'))
+            # `user_is_verified` ensures that `username` exists in the
+            # credentials dict.
+            subdomain = self.build_subdomain(credentials['username'])
             host = self.build_host(subdomain)
             status = self.execute_letsencrypt_client(
                 ['-d', host] + ['-o', self.path_to_certs])
@@ -257,37 +255,12 @@ class Server():
         plotly_api_domain = credentials.get('plotly_api_domain')
         return requests.get(plotly_api_domain + endpoint, headers=headers)
 
-    def credentials_are_valid(self, credentials):
+    def user_is_verified(self, credentials):
         if 'username' not in credentials.keys():
             return False
-        if 'plotly_api_domain' not in credentials.keys():
-            return False
-        return True
 
-    def user_is_verified(self, credentials):
-        if not self.credentials_are_valid(credentials):
-            return False
-        # TODO: Decide verification method for on-prem if any.
-        # For now, ask on-prem users to use the headless connector with their
-        # Plotly server or get a Pro Cloud account.
-        # https://github.com/plotly/le-bot/issues/2
-        if credentials.get('plotly_api_domain') != 'https://api.plot.ly':
-            return False
-        # Continue on knowing there is a username in credentials.
-        response = self.call_plotly_api('/v2/users/current', credentials)
-        # Requests with either existing or non-existing both return a
-        # status_code of 200.
-        # but non-existing user returns "falsey" values for all parameters.
-        content = json.loads(response.content)
-        if (response.status_code != 200):
-            return False
-        # Continue on knowing the status code was a 200 but username still
-        # may not exist.
-        res_usr = content.get('username')
-        if (res_usr is not '' and res_usr == credentials.get('username')):
-            return True
-        else:
-            return False
+        # TODO: add auth that works for both Cloud and On-Prem users
+        return True
 
     def delete_certs_folder_if_exists(self, subdomain):
         host = self.build_host(subdomain)
