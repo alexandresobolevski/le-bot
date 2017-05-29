@@ -44,8 +44,6 @@ test_plotly_api_domain = os.environ.get('PLOTLY_API_DOMAIN')
 # on Circle CI and Heroku through environment variables in the service's
 # settings.
 #
-correct_access_token = os.environ['PLOTLY_ACCESS_TOKEN']
-correct_api_key = os.environ['PLOTLY_API_KEY']
 correct_username = os.environ['PLOTLY_USERNAME']
 
 #
@@ -159,36 +157,12 @@ class TestServerRoutes(unittest.TestCase):
             res = app_under_test.get('/ping')
             self.assertEqual(res.data, 'pong')
 
-    # Successful case: access_token
-    def test_certificate_post_success_with_token(self):
+    def test_certificate_post_success(self):
         with self.server.app.test_client() as app_under_test:
             start_time = time.time()
             res = app_under_test.post('/certificate', data=json.dumps({
                 'credentials': {
                     'username': correct_username,
-                    'access_token': correct_access_token,
-                    'plotly_api_domain': test_plotly_api_domain
-                }
-            }))
-            self.assertTrue((time.time() - start_time) < 120)
-            response_object = json.loads(res.data)
-            # Returns the certificate, the key and the subdomain used.
-            self.assertIn('cert', response_object)
-            self.assertIn('key', response_object)
-            self.assertIn('subdomain', response_object)
-            self.assertIsNotNone(response_object.get('cert'))
-            self.assertIsNotNone(response_object.get('key'))
-            self.assertIn(correct_username[:7], response_object.get('subdomain'))
-
-    # Successful case: api_key
-    def test_certificate_post_success_with_key(self):
-        with self.server.app.test_client() as app_under_test:
-            start_time = time.time()
-            res = app_under_test.post('/certificate', data=json.dumps({
-                'credentials': {
-                    'username': correct_username,
-                    'api_key': correct_api_key,
-                    'plotly_api_domain': test_plotly_api_domain
                 }
             }))
             self.assertTrue((time.time() - start_time) < 120)
@@ -205,9 +179,7 @@ class TestServerRoutes(unittest.TestCase):
     def test_certificate_post_error_no_username(self):
         with self.server.app.test_client() as app_under_test:
             res = app_under_test.post('/certificate', data=json.dumps({
-                'credentials': {
-                    'access_token': correct_access_token,
-                    'plotly_api_domain': test_plotly_api_domain}
+                'credentials': {}
             }))
             self.assertTrue('error' in json.loads(res.data))
 
@@ -348,31 +320,7 @@ class TestServerFunctions(unittest.TestCase):
         self.assertNotEqual(self.server.get_hash(), self.server.get_hash())
 
     def test_call_plotly_api(self):
-        # Failing case: access_token
-        credentials = {
-            'username': fake_username,
-            'access_token': fake_access_token,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        response = self.server.call_plotly_api(CURRENT, credentials)
-        content = json.loads(response.content)
-        self.assertFalse(
-            bool(content.get('username')),
-            'Expected to fail with fake access token.')
-
-        # Failing case: api_key
-        credentials = {
-            'username': fake_username,
-            'api_key': fake_api_key,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        response = self.server.call_plotly_api(CURRENT, credentials)
-        content = json.loads(response.content)
-        self.assertFalse(
-            bool(content.get('username')),
-            'Expected to fail with fake api key.')
-
-        # Successful case: access_token
+        # Successful case: access_token (ignored)
         credentials = {
             'username': correct_username,
             'access_token': correct_access_token,
@@ -383,7 +331,7 @@ class TestServerFunctions(unittest.TestCase):
         self.assertEqual(
             content.get('username'), 'alexandres', 'Failed with access token.')
 
-        # Successful case: api_key
+        # Successful case: api_key (ignored)
         credentials = {
             'username': correct_username,
             'api_key': correct_api_key,
@@ -395,13 +343,6 @@ class TestServerFunctions(unittest.TestCase):
             content.get('username'), 'alexandres', 'Failed with api key.')
 
     def test_user_is_verified(self):
-        # Failing case: no plotly domain
-        credentials = {
-            'username': fake_username,
-            'api_key': fake_api_key
-        }
-        self.assertFalse(self.server.user_is_verified(credentials))
-
         # Failing case: no username
         credentials = {
             'api_key': fake_api_key,
@@ -409,35 +350,9 @@ class TestServerFunctions(unittest.TestCase):
         }
         self.assertFalse(self.server.user_is_verified(credentials))
 
-        # Failing case: bad api_key
-        credentials = {
-            'username': fake_username,
-            'api_key': fake_api_key,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        self.assertFalse(self.server.user_is_verified(credentials))
-
-        # Failing case: bad access_token
-        credentials = {
-            'username': fake_username,
-            'access_token': fake_access_token,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        self.assertFalse(self.server.user_is_verified(credentials))
-
-        # Failing case: good access_token but wrong username
-        credentials = {
-            'username': fake_username,
-            'access_token': correct_access_token,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        self.assertFalse(self.server.user_is_verified(credentials))
-
         # Successful case
         credentials = {
             'username': correct_username,
-            'access_token': correct_access_token,
-            'plotly_api_domain': test_plotly_api_domain
         }
         self.assertTrue(self.server.user_is_verified(credentials))
 
