@@ -29,6 +29,9 @@ user_input_path_to_certs = './certs'
 user_input_path_to_config = './config_staging'
 user_input_processes = 1
 
+# This is set on Circle CI only to allow preserving logs as artifacts:
+preserved_log_dir = os.environ.get('PRESERVED_LOG_DIR')
+
 #
 # The domain and successful credentials are set as an environment variables
 # in prod as well as local (by sourcing a hidden credentials file before running tests)
@@ -133,7 +136,10 @@ class TestServerRoutes(unittest.TestCase):
     #
     """
     def setUp(self):
-        self.path_to_logs = tempfile.mkdtemp()
+        if preserved_log_dir:
+            self.path_to_logs = preserved_log_dir
+        else:
+            self.path_to_logs = tempfile.mkdtemp()
 
         self.server = Server({
             'port': user_input_port,
@@ -148,7 +154,8 @@ class TestServerRoutes(unittest.TestCase):
             shutil.rmtree(os.path.join(os.getcwd(), user_input_path_to_certs))
         except:
             pass
-        shutil.rmtree(self.path_to_logs)
+        if not preserved_log_dir:
+            shutil.rmtree(self.path_to_logs)
 
     def test_ping(self):
         with self.server.app.test_client() as app_under_test:
