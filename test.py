@@ -239,9 +239,30 @@ class TestServerFunctions(unittest.TestCase):
 
     def test_build_subdomain(self):
         build_subdomain_under_test = self.server.build_subdomain(fake_username)
-
         self.assertEqual(
             len(mocked_build_subdomain), len(build_subdomain_under_test))
+
+        def fake_get_hash():
+            return mocked_get_hash
+
+        self.server.get_hash = fake_get_hash
+
+        exp_hash = mocked_get_hash[:25]
+
+        self.assertEqual(self.server.build_subdomain('Cats'),
+                         'cats-{}'.format(exp_hash))
+        self.assertEqual(self.server.build_subdomain('LongCatIsLong'),
+                         'longcat-{}'.format(exp_hash))
+        self.assertEqual(self.server.build_subdomain('dash-ok'),
+                         'dash-ok-{}'.format(exp_hash))
+        self.assertEqual(self.server.build_subdomain('no.dot'),
+                         'no-dot-{}'.format(exp_hash))
+        self.assertEqual(self.server.build_subdomain('no_under'),
+                         'no-unde-{}'.format(exp_hash))
+        self.assertEqual(self.server.build_subdomain('-no-leading'),
+                         'pno-lea-{}'.format(exp_hash))
+        self.assertEqual(self.server.build_subdomain('-'),
+                         'p-{}'.format(exp_hash))
 
     def test_get_path(self):
         server = Server({
