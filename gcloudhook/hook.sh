@@ -83,7 +83,7 @@ function deploy_challenge() {
         changeID=$($GCLOUD dns record-sets transaction execute "$transaction_file_arg" --zone "$ZONE_NAME"  --format='value(id)')
 
         if [[ -z "$changeID" ]]; then
-             $GCLOUD dns record-sets transaction abort $transaction_file_arg --zone
+             $GCLOUD dns record-sets transaction abort $transaction_file_arg --zone "$ZONE_NAME"
              return 1
         fi
     }
