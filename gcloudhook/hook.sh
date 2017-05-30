@@ -76,11 +76,11 @@ function deploy_challenge() {
         # Adds the challenge DNS record using gcloud.  Sets $changeID on
         # success, returns 1 on failure.
 
-        "$GCLOUD" dns record-sets transaction start "$transaction_file_arg" --zone "$ZONE_NAME"
-        "$GCLOUD" dns record-sets transaction add "$transaction_file_arg" --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone "$ZONE_NAME"
-        "$GCLOUD" dns record-sets transaction describe "$transaction_file_arg" --zone "$ZONE_NAME"
+        $GCLOUD dns record-sets transaction start "$transaction_file_arg" --zone "$ZONE_NAME"
+        $GCLOUD dns record-sets transaction add "$transaction_file_arg" --name "_acme-challenge.$DOMAIN." --ttl 300 --type TXT "$TOKEN_VALUE" --zone "$ZONE_NAME"
+        $GCLOUD dns record-sets transaction describe "$transaction_file_arg" --zone "$ZONE_NAME"
 
-        changeID=$("$GCLOUD" dns record-sets transaction execute "$transaction_file_arg" --zone "$ZONE_NAME"  --format='value(id)')
+        changeID=$($GCLOUD dns record-sets transaction execute "$transaction_file_arg" --zone "$ZONE_NAME"  --format='value(id)')
 
         if [[ -z "$changeID" ]]; then
              $GCLOUD dns record-sets transaction abort $transaction_file_arg --zone
@@ -101,7 +101,7 @@ function deploy_challenge() {
         # Checks that the challenge has successfully been added using the
         # "gcloud" command.  Returns 1 on failure.
 
-        status=$("$GCLOUD" dns record-sets changes describe "$changeID" --zone "$ZONE_NAME"  --format='value(status)')
+        status=$($GCLOUD dns record-sets changes describe "$changeID" --zone "$ZONE_NAME"  --format='value(status)')
         echo -n "${status}..."
 
         if [[ "$status" != "done" ]]; then
@@ -170,7 +170,7 @@ function clean_challenge() {
     transaction_dir=`mktemp -d`
     transaction_file_arg="--transaction-file=$transaction_dir/transaction.json"
 
-    existingRecord=$("$GCLOUD" dns record-sets list --name "_acme-challenge.$DOMAIN." --type TXT --zone "$ZONE_NAME"  --format='value(name,rrdatas[0],ttl)')
+    existingRecord=$($GCLOUD dns record-sets list --name "_acme-challenge.$DOMAIN." --type TXT --zone "$ZONE_NAME"  --format='value(name,rrdatas[0],ttl)')
     existingRecord=${existingRecord//$'\t'/,}
     echo "existing record ... ${existingRecord}"
     IFS=',' read -r -a splitRecord <<< "$existingRecord"
@@ -181,12 +181,12 @@ function clean_challenge() {
 
     function remove_challenge_from_dns() {
         # Removes a challenge DNS record using gcloud. Returns 1 on failure.
-        "$GCLOUD" dns record-sets transaction start "$transaction_file_arg" --zone "$ZONE_NAME"
-        "$GCLOUD" dns record-sets transaction remove "$transaction_file_arg" "${splitRecord[1]}" --name "${splitRecord[0]}" --type TXT --ttl "${splitRecord[2]}" --zone "$ZONE_NAME"
-        changeID=$("$GCLOUD" dns record-sets transaction execute "$transaction_file_arg" --zone "$ZONE_NAME")
+        $GCLOUD dns record-sets transaction start "$transaction_file_arg" --zone "$ZONE_NAME"
+        $GCLOUD dns record-sets transaction remove "$transaction_file_arg" "${splitRecord[1]}" --name "${splitRecord[0]}" --type TXT --ttl "${splitRecord[2]}" --zone "$ZONE_NAME"
+        changeID=$($GCLOUD dns record-sets transaction execute "$transaction_file_arg" --zone "$ZONE_NAME")
 
         if [[ -z "$changeID" ]]; then
-            "$GCLOUD" dns record-sets transaction abort "$transaction_file_arg" --zone "$ZONE_NAME"
+            $GCLOUD dns record-sets transaction abort "$transaction_file_arg" --zone "$ZONE_NAME"
             echo -n "..."
             return 1
         fi
