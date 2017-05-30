@@ -281,21 +281,12 @@ class Server():
             subprocess32.check_call(cmd, stdout=log, stderr=log, shell=False)
         except subprocess32.CalledProcessError as err:
             print 'Execution error: {}'.format(err.returncode)
-            self.remove_lock_file()
             return 1
 
         print("--- %s seconds ---" % (time.time() - start_time))
         log.close()
         os.unlink(log.name)
         return 0
-
-    def remove_lock_file(self):
-        # Deletes Lockfile if process was interrupted.
-        # https://github.com/lukas2511/dehydrated/issues/31
-        try:
-            os.remove('lock')
-        except:
-            pass
 
     def start(self):
         if (int(self.port) == 443):

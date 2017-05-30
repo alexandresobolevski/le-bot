@@ -1,8 +1,9 @@
 M2Crypto
 flask
 pem
-requests
+requests[security]
 grequests
 six
 subprocess32
 uwsgi
+urllib3[secure]
