@@ -236,48 +236,36 @@ class TestServerFunctions(unittest.TestCase):
         self.assertEqual(
             len(mocked_build_subdomain), len(build_subdomain_under_test))
 
-    def test_get_key_path(self):
-        expected_path = os.path.join(
-            mocked_path_to_certs + mocked_build_host + '/privkey.pem')
+    def test_get_path(self):
+        server = Server({
+            'port': user_input_port,
+            'path_to_config': user_input_path_to_config,
+            'path_to_certs': 'fake/cert/path',
+            'processes': user_input_processes,
+            'path_to_logs': self.path_to_logs
+        })
 
-        self.assertEqual(
-            self.server.get_key_path(mocked_build_subdomain),
-            expected_path)
+        expected_key_path = os.path.join(os.getcwd(), 'fake/cert/path',
+                                         mocked_build_host, 'privkey.pem')
+        self.assertEqual(server.get_key_path(mocked_build_subdomain),
+                         expected_key_path)
 
-    def test_get_cert_path(self):
-        expected_path = os.path.join(
-            mocked_path_to_certs + mocked_build_host + '/fullchain.pem')
+        expected_cert_path = os.path.join(os.getcwd(), 'fake/cert/path',
+                                          mocked_build_host, 'fullchain.pem')
+        self.assertEqual(server.get_cert_path(mocked_build_subdomain),
+                         expected_cert_path)
 
-        self.assertEqual(
-            self.server.get_cert_path(mocked_build_subdomain), expected_path)
-
-    def test_cert_and_key_exist(self):
-        # Check certs do not exist
-        self.assertEqual(
-            self.server.cert_and_key_exist(mocked_build_subdomain),
-            False)
-
+    def test_get_cert_and_key(self):
         # Create fake certs
         test_key, test_cert = mock_create_certs(self.path_to_certs)
 
         # Check certs exist
-        self.assertEqual(
-            self.server.cert_and_key_exist(mocked_build_subdomain),
-            True)
+        self.assertTrue(self.server.get_cert_and_key(mocked_build_subdomain))
 
-        # Clean up
-        os.remove(test_key)
-        os.remove(test_cert)
-        os.removedirs(os.path.join(
-            os.getcwd(),
-            user_input_path_to_certs,
-            mocked_build_host))
-
-    def test_get_cert_and_key(self):
+    def test_get_cert_and_key_error(self):
         with self.assertRaises(Exception) as context:
             certs = self.server.get_cert_and_key(mocked_build_subdomain)
-        print(context.exception)
-        self.assertTrue('Certificates were not found.' in context.exception)
+        self.assertIn('key not found:', str(context.exception))
 
     def test_delete_certs_folder_if_exists(self):
         # Create fake certs
