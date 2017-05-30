@@ -250,11 +250,6 @@ class Server():
         # See method build_subdomain() for more details.
         return str(uuid.uuid4())
 
-    def call_plotly_api(self, endpoint, credentials):
-        headers = self.get_headers(credentials)
-        plotly_api_domain = credentials.get('plotly_api_domain')
-        return requests.get(plotly_api_domain + endpoint, headers=headers)
-
     def user_is_verified(self, credentials):
         if 'username' not in credentials.keys():
             return False

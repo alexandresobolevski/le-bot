@@ -1,6 +1,8 @@
 machine:
     python:
         version: 2.7.12
+    environment:
+        PRESERVED_LOG_DIR: $CIRCLE_ARTIFACTS
 
 checkout:
   post:

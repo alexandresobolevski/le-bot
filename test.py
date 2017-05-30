@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import unittest
 
 from M2Crypto import RSA
@@ -8,6 +10,7 @@ import os
 import shutil
 import six
 import subprocess
+import tempfile
 import time
 import uuid
 
@@ -26,6 +29,9 @@ user_input_path_to_certs = './certs'
 user_input_path_to_config = './config_staging'
 user_input_processes = 1
 
+# This is set on Circle CI only to allow preserving logs as artifacts:
+preserved_log_dir = os.environ.get('PRESERVED_LOG_DIR')
+
 #
 # The domain and successful credentials are set as an environment variables
 # in prod as well as local (by sourcing a hidden credentials file before running tests)
@@ -41,8 +47,6 @@ test_plotly_api_domain = os.environ.get('PLOTLY_API_DOMAIN')
 # on Circle CI and Heroku through environment variables in the service's
 # settings.
 #
-correct_access_token = os.environ['PLOTLY_ACCESS_TOKEN']
-correct_api_key = os.environ['PLOTLY_API_KEY']
 correct_username = os.environ['PLOTLY_USERNAME']
 
 #
@@ -56,8 +60,6 @@ fake_access_token = 'f4K3-4CC355-t0k3N'
 #
 # Quick Mocks to avoid using other functions than those under test per test
 #
-mocked_path_to_certs = os.path.join(
-    os.getcwd(), os.path.relpath(user_input_path_to_certs) + os.sep)
 mocked_path_to_config = os.path.join(
     os.getcwd(), os.path.relpath(user_input_path_to_config))
 mocked_get_hash = str(uuid.uuid4())
@@ -67,19 +69,19 @@ mocked_encoded_api_key = base64.b64encode(
     six.b('{0}:{1}'.format(fake_username, fake_api_key))).decode('utf8')
 
 
-def mock_create_certs():
-    # Make empty directories for certs
-    os.mkdir(user_input_path_to_certs)
-    domain_cert_folder = os.path.join(
-        os.getcwd(), user_input_path_to_certs, mocked_build_host)
+def mock_create_certs(cert_dir):
+    domain_cert_folder = os.path.join(os.getcwd(), cert_dir, mocked_build_host)
     os.mkdir(domain_cert_folder)
 
-    # Create fake certs
+    # Create fake certs.  Note that the "cert" is actually a key for ease
+    # of implementation.  This works because get_cert_and_key() doesn't
+    # actually check the type of the item it extracted.  If get_cert_and_key()
+    # is ever improved, this function will need to be improved too.
     key = RSA.gen_key(2048, 65537)
     test_key = os.path.join(domain_cert_folder, 'privkey.pem')
     test_cert = os.path.join(domain_cert_folder, 'fullchain.pem')
-    key.save_pem(test_cert, cipher=None)
-    key.save_pub_key(test_key)
+    key.save_key(test_key, cipher=None)
+    key.save_key(test_cert, cipher=None)
     return test_key, test_cert
 
 #
@@ -134,47 +136,38 @@ class TestServerRoutes(unittest.TestCase):
     #
     """
     def setUp(self):
+        if preserved_log_dir:
+            self.path_to_logs = preserved_log_dir
+        else:
+            self.path_to_logs = tempfile.mkdtemp()
+
         self.server = Server({
             'port': user_input_port,
             'path_to_config': user_input_path_to_config,
             'path_to_certs': user_input_path_to_certs,
-            'processes': user_input_processes})
+            'processes': user_input_processes,
+            'path_to_logs': self.path_to_logs})
+
+    # Delete certificates folder after each test to start from a clean state.
+    def tearDown(self):
+        try:
+            shutil.rmtree(os.path.join(os.getcwd(), user_input_path_to_certs))
+        except:
+            pass
+        if not preserved_log_dir:
+            shutil.rmtree(self.path_to_logs)
 
     def test_ping(self):
         with self.server.app.test_client() as app_under_test:
             res = app_under_test.get('/ping')
             self.assertEqual(res.data, 'pong')
 
-    # Successful case: access_token
-    def test_certificate_post_success_with_token(self):
+    def test_certificate_post_success(self):
         with self.server.app.test_client() as app_under_test:
             start_time = time.time()
             res = app_under_test.post('/certificate', data=json.dumps({
                 'credentials': {
                     'username': correct_username,
-                    'access_token': correct_access_token,
-                    'plotly_api_domain': test_plotly_api_domain
-                }
-            }))
-            self.assertTrue((time.time() - start_time) < 120)
-            response_object = json.loads(res.data)
-            # Returns the certificate, the key and the subdomain used.
-            self.assertIn('cert', response_object)
-            self.assertIn('key', response_object)
-            self.assertIn('subdomain', response_object)
-            self.assertIsNotNone(response_object.get('cert'))
-            self.assertIsNotNone(response_object.get('key'))
-            self.assertIn(correct_username[:7], response_object.get('subdomain'))
-
-    # Successful case: api_key
-    def test_certificate_post_success_with_key(self):
-        with self.server.app.test_client() as app_under_test:
-            start_time = time.time()
-            res = app_under_test.post('/certificate', data=json.dumps({
-                'credentials': {
-                    'username': correct_username,
-                    'api_key': correct_api_key,
-                    'plotly_api_domain': test_plotly_api_domain
                 }
             }))
             self.assertTrue((time.time() - start_time) < 120)
@@ -191,30 +184,9 @@ class TestServerRoutes(unittest.TestCase):
     def test_certificate_post_error_no_username(self):
         with self.server.app.test_client() as app_under_test:
             res = app_under_test.post('/certificate', data=json.dumps({
-                'credentials': {
-                    'access_token': correct_access_token,
-                    'plotly_api_domain': test_plotly_api_domain}
+                'credentials': {}
             }))
             self.assertTrue('error' in json.loads(res.data))
-
-    # Failing case: bad authorization
-    def test_certificate_post_error_bad_token(self):
-        with self.server.app.test_client() as app_under_test:
-            res = app_under_test.post('/certificate', data=json.dumps({
-                'credentials': {
-                    'username': correct_username,
-                    'access_token': fake_access_token,
-                    'plotly_api_domain': test_plotly_api_domain
-                }
-            }))
-            self.assertTrue('error' in json.loads(res.data))
-
-    # Delete certificates folder after each test to start from a clean state.
-    def tearDown(self):
-        try:
-            shutil.rmtree(os.path.join(os.getcwd(), user_input_path_to_certs))
-        except:
-            pass
 
 
 class TestServerFunctions(unittest.TestCase):
@@ -224,17 +196,34 @@ class TestServerFunctions(unittest.TestCase):
     #
     """
     def setUp(self):
+        self.path_to_logs = tempfile.mkdtemp()
+        self.path_to_certs = tempfile.mkdtemp()
+
         self.server = Server({
             'port': user_input_port,
             'path_to_config': user_input_path_to_config,
-            'path_to_certs': user_input_path_to_certs,
-            'processes': user_input_processes})
+            'path_to_certs': self.path_to_certs,
+            'processes': user_input_processes,
+            'path_to_logs': self.path_to_logs})
+
+    def tearDown(self):
+        shutil.rmtree(self.path_to_logs)
+        shutil.rmtree(self.path_to_certs)
 
     def test_constructor(self):
-        self.assertEqual(self.server.port, user_input_port)
-        self.assertEqual(self.server.domain, test_domain)
-        self.assertEqual(self.server.processes, user_input_processes)
-        self.assertEqual(self.server.path_to_certs, mocked_path_to_certs)
+        server = Server({
+            'port': user_input_port,
+            'path_to_config': user_input_path_to_config,
+            'path_to_certs': 'fake/cert/path',
+            'processes': user_input_processes,
+            'path_to_logs': self.path_to_logs
+        })
+
+        self.assertEqual(server.port, user_input_port)
+        self.assertEqual(server.domain, test_domain)
+        self.assertEqual(server.processes, user_input_processes)
+        self.assertEqual(server.path_to_certs,
+                         os.path.join(os.getcwd(), 'fake/cert/path/'))
         self.assertEqual(
             self.server.dehydrated_command, [
                 os.getcwd() + '/dehydrated-0.3.1/dehydrated',
@@ -254,60 +243,45 @@ class TestServerFunctions(unittest.TestCase):
         self.assertEqual(
             len(mocked_build_subdomain), len(build_subdomain_under_test))
 
-    def test_get_key_path(self):
-        expected_path = os.path.join(
-            mocked_path_to_certs + mocked_build_host + '/privkey.pem')
+    def test_get_path(self):
+        server = Server({
+            'port': user_input_port,
+            'path_to_config': user_input_path_to_config,
+            'path_to_certs': 'fake/cert/path',
+            'processes': user_input_processes,
+            'path_to_logs': self.path_to_logs
+        })
 
-        self.assertEqual(
-            self.server.get_key_path(mocked_build_subdomain),
-            expected_path)
+        expected_key_path = os.path.join(os.getcwd(), 'fake/cert/path',
+                                         mocked_build_host, 'privkey.pem')
+        self.assertEqual(server.get_key_path(mocked_build_subdomain),
+                         expected_key_path)
 
-    def test_get_cert_path(self):
-        expected_path = os.path.join(
-            mocked_path_to_certs + mocked_build_host + '/fullchain.pem')
-
-        self.assertEqual(
-            self.server.get_cert_path(mocked_build_subdomain), expected_path)
-
-    def test_cert_and_key_exist(self):
-        # Check certs do not exist
-        self.assertEqual(
-            self.server.cert_and_key_exist(mocked_build_subdomain),
-            False)
-
-        # Create fake certs
-        test_key, test_cert = mock_create_certs()
-
-        # Check certs exist
-        self.assertEqual(
-            self.server.cert_and_key_exist(mocked_build_subdomain),
-            True)
-
-        # Clean up
-        os.remove(test_key)
-        os.remove(test_cert)
-        os.removedirs(os.path.join(
-            os.getcwd(),
-            user_input_path_to_certs,
-            mocked_build_host))
+        expected_cert_path = os.path.join(os.getcwd(), 'fake/cert/path',
+                                          mocked_build_host, 'fullchain.pem')
+        self.assertEqual(server.get_cert_path(mocked_build_subdomain),
+                         expected_cert_path)
 
     def test_get_cert_and_key(self):
+        # Create fake certs
+        test_key, test_cert = mock_create_certs(self.path_to_certs)
+
+        # Check certs exist
+        self.assertTrue(self.server.get_cert_and_key(mocked_build_subdomain))
+
+    def test_get_cert_and_key_error(self):
         with self.assertRaises(Exception) as context:
             certs = self.server.get_cert_and_key(mocked_build_subdomain)
-        print(context.exception)
-        self.assertTrue('Certificates were not found.' in context.exception)
+        self.assertIn('key not found:', str(context.exception))
 
     def test_delete_certs_folder_if_exists(self):
         # Create fake certs
-        test_key, test_cert = mock_create_certs()
+        test_key, test_cert = mock_create_certs(self.path_to_certs)
 
         # Delete them
         self.server.delete_certs_folder_if_exists(mocked_build_subdomain)
         self.assertFalse(os.path.exists(test_key))
         self.assertFalse(os.path.exists(test_cert))
-
-        # Clean up
-        os.removedirs(user_input_path_to_certs)
 
     def test_encode_api_key(self):
         expected_key = base64.b64encode(
@@ -346,61 +320,7 @@ class TestServerFunctions(unittest.TestCase):
         # Make sure it's not always returning the same hash
         self.assertNotEqual(self.server.get_hash(), self.server.get_hash())
 
-    def test_call_plotly_api(self):
-        # Failing case: access_token
-        credentials = {
-            'username': fake_username,
-            'access_token': fake_access_token,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        response = self.server.call_plotly_api(CURRENT, credentials)
-        content = json.loads(response.content)
-        self.assertFalse(
-            bool(content.get('username')),
-            'Expected to fail with fake access token.')
-
-        # Failing case: api_key
-        credentials = {
-            'username': fake_username,
-            'api_key': fake_api_key,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        response = self.server.call_plotly_api(CURRENT, credentials)
-        content = json.loads(response.content)
-        self.assertFalse(
-            bool(content.get('username')),
-            'Expected to fail with fake api key.')
-
-        # Successful case: access_token
-        credentials = {
-            'username': correct_username,
-            'access_token': correct_access_token,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        response = self.server.call_plotly_api(CURRENT, credentials)
-        content = json.loads(response.content)
-        self.assertEqual(
-            content.get('username'), 'alexandres', 'Failed with access token.')
-
-        # Successful case: api_key
-        credentials = {
-            'username': correct_username,
-            'api_key': correct_api_key,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        response = self.server.call_plotly_api(CURRENT, credentials)
-        content = json.loads(response.content)
-        self.assertEqual(
-            content.get('username'), 'alexandres', 'Failed with api key.')
-
     def test_user_is_verified(self):
-        # Failing case: no plotly domain
-        credentials = {
-            'username': fake_username,
-            'api_key': fake_api_key
-        }
-        self.assertFalse(self.server.user_is_verified(credentials))
-
         # Failing case: no username
         credentials = {
             'api_key': fake_api_key,
@@ -408,47 +328,15 @@ class TestServerFunctions(unittest.TestCase):
         }
         self.assertFalse(self.server.user_is_verified(credentials))
 
-        # Failing case: bad api_key
-        credentials = {
-            'username': fake_username,
-            'api_key': fake_api_key,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        self.assertFalse(self.server.user_is_verified(credentials))
-
-        # Failing case: bad access_token
-        credentials = {
-            'username': fake_username,
-            'access_token': fake_access_token,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        self.assertFalse(self.server.user_is_verified(credentials))
-
-        # Failing case: good access_token but wrong username
-        credentials = {
-            'username': fake_username,
-            'access_token': correct_access_token,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        self.assertFalse(self.server.user_is_verified(credentials))
-
         # Successful case
         credentials = {
             'username': correct_username,
-            'access_token': correct_access_token,
-            'plotly_api_domain': test_plotly_api_domain
         }
         self.assertTrue(self.server.user_is_verified(credentials))
 
     # TODO: Add a tests for catching TimtoutError and ProcessError in
     # server.execute_letsencrypt_client()
 
-    # Delete certificates folder after each test to start from a clean state.
-    def tearDown(self):
-        try:
-            shutil.rmtree(os.path.join(os.getcwd(), user_input_path_to_certs))
-        except:
-            pass
 
 if __name__ == '__main__':
     unittest.main()
