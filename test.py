@@ -204,10 +204,19 @@ class TestServerFunctions(unittest.TestCase):
         shutil.rmtree(self.path_to_certs)
 
     def test_constructor(self):
-        self.assertEqual(self.server.port, user_input_port)
-        self.assertEqual(self.server.domain, test_domain)
-        self.assertEqual(self.server.processes, user_input_processes)
-        self.assertEqual(self.server.path_to_certs, mocked_path_to_certs)
+        server = Server({
+            'port': user_input_port,
+            'path_to_config': user_input_path_to_config,
+            'path_to_certs': 'fake/cert/path',
+            'processes': user_input_processes,
+            'path_to_logs': self.path_to_logs
+        })
+
+        self.assertEqual(server.port, user_input_port)
+        self.assertEqual(server.domain, test_domain)
+        self.assertEqual(server.processes, user_input_processes)
+        self.assertEqual(server.path_to_certs,
+                         os.path.join(os.getcwd(), 'fake/cert/path/'))
         self.assertEqual(
             self.server.dehydrated_command, [
                 os.getcwd() + '/dehydrated-0.3.1/dehydrated',
