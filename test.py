@@ -57,8 +57,6 @@ fake_access_token = 'f4K3-4CC355-t0k3N'
 #
 # Quick Mocks to avoid using other functions than those under test per test
 #
-mocked_path_to_certs = os.path.join(
-    os.getcwd(), os.path.relpath(user_input_path_to_certs) + os.sep)
 mocked_path_to_config = os.path.join(
     os.getcwd(), os.path.relpath(user_input_path_to_config))
 mocked_get_hash = str(uuid.uuid4())
@@ -68,19 +66,19 @@ mocked_encoded_api_key = base64.b64encode(
     six.b('{0}:{1}'.format(fake_username, fake_api_key))).decode('utf8')
 
 
-def mock_create_certs():
-    # Make empty directories for certs
-    os.mkdir(user_input_path_to_certs)
-    domain_cert_folder = os.path.join(
-        os.getcwd(), user_input_path_to_certs, mocked_build_host)
+def mock_create_certs(cert_dir):
+    domain_cert_folder = os.path.join(os.getcwd(), cert_dir, mocked_build_host)
     os.mkdir(domain_cert_folder)
 
-    # Create fake certs
+    # Create fake certs.  Note that the "cert" is actually a key for ease
+    # of implementation.  This works because get_cert_and_key() doesn't
+    # actually check the type of the item it extracted.  If get_cert_and_key()
+    # is ever improved, this function will need to be improved too.
     key = RSA.gen_key(2048, 65537)
     test_key = os.path.join(domain_cert_folder, 'privkey.pem')
     test_cert = os.path.join(domain_cert_folder, 'fullchain.pem')
-    key.save_pem(test_cert, cipher=None)
-    key.save_pub_key(test_key)
+    key.save_key(test_key, cipher=None)
+    key.save_key(test_cert, cipher=None)
     return test_key, test_cert
 
 #
@@ -192,16 +190,18 @@ class TestServerFunctions(unittest.TestCase):
     """
     def setUp(self):
         self.path_to_logs = tempfile.mkdtemp()
+        self.path_to_certs = tempfile.mkdtemp()
 
         self.server = Server({
             'port': user_input_port,
             'path_to_config': user_input_path_to_config,
-            'path_to_certs': user_input_path_to_certs,
+            'path_to_certs': self.path_to_certs,
             'processes': user_input_processes,
             'path_to_logs': self.path_to_logs})
 
     def tearDown(self):
         shutil.rmtree(self.path_to_logs)
+        shutil.rmtree(self.path_to_certs)
 
     def test_constructor(self):
         self.assertEqual(self.server.port, user_input_port)
@@ -249,7 +249,7 @@ class TestServerFunctions(unittest.TestCase):
             False)
 
         # Create fake certs
-        test_key, test_cert = mock_create_certs()
+        test_key, test_cert = mock_create_certs(self.path_to_certs)
 
         # Check certs exist
         self.assertEqual(
@@ -272,15 +272,12 @@ class TestServerFunctions(unittest.TestCase):
 
     def test_delete_certs_folder_if_exists(self):
         # Create fake certs
-        test_key, test_cert = mock_create_certs()
+        test_key, test_cert = mock_create_certs(self.path_to_certs)
 
         # Delete them
         self.server.delete_certs_folder_if_exists(mocked_build_subdomain)
         self.assertFalse(os.path.exists(test_key))
         self.assertFalse(os.path.exists(test_cert))
-
-        # Clean up
-        os.removedirs(user_input_path_to_certs)
 
     def test_encode_api_key(self):
         expected_key = base64.b64encode(
@@ -336,12 +333,6 @@ class TestServerFunctions(unittest.TestCase):
     # TODO: Add a tests for catching TimtoutError and ProcessError in
     # server.execute_letsencrypt_client()
 
-    # Delete certificates folder after each test to start from a clean state.
-    def tearDown(self):
-        try:
-            shutil.rmtree(os.path.join(os.getcwd(), user_input_path_to_certs))
-        except:
-            pass
 
 if __name__ == '__main__':
     unittest.main()
