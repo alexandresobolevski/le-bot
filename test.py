@@ -319,29 +319,6 @@ class TestServerFunctions(unittest.TestCase):
         # Make sure it's not always returning the same hash
         self.assertNotEqual(self.server.get_hash(), self.server.get_hash())
 
-    def test_call_plotly_api(self):
-        # Successful case: access_token (ignored)
-        credentials = {
-            'username': correct_username,
-            'access_token': correct_access_token,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        response = self.server.call_plotly_api(CURRENT, credentials)
-        content = json.loads(response.content)
-        self.assertEqual(
-            content.get('username'), 'alexandres', 'Failed with access token.')
-
-        # Successful case: api_key (ignored)
-        credentials = {
-            'username': correct_username,
-            'api_key': correct_api_key,
-            'plotly_api_domain': test_plotly_api_domain
-        }
-        response = self.server.call_plotly_api(CURRENT, credentials)
-        content = json.loads(response.content)
-        self.assertEqual(
-            content.get('username'), 'alexandres', 'Failed with api key.')
-
     def test_user_is_verified(self):
         # Failing case: no username
         credentials = {
