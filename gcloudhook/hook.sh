@@ -247,4 +247,8 @@ function unchanged_cert() {
     echo "Certificate for domain $DOMAIN is still valid - no action taken"
 }
 
+function exit_hook() {
+    exit 0
+}
+
 HANDLER="$1"; shift; "$HANDLER" "$@"

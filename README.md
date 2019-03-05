@@ -15,7 +15,7 @@ Python 2.7 environment
 Let's Encrypt shell client dehydrated
 
 ```bash
-curl -sL https://github.com/lukas2511/dehydrated/archive/v0.3.1.tar.gz | tar xz
+curl -sL https://github.com/lukas2511/dehydrated/archive/v0.4.0.tar.gz | tar xz
 ```
 
 Assuming your domain is `your-domain.com` that is under `your-zone` zone in your Google Cloud DNS records,
